@@ -1,3 +1,4 @@
+import json
 import logging
 
 import requests
@@ -32,13 +33,13 @@ def _run_and_check(method, session, prepped_request, extra_options):
         # to get reason and code for failure by checking first 3 chars
         # for the code, or do a split on ':'
         logging.error("HTTP error: %s", response.reason)
-        if method not in ('GET', 'HEAD'):
+        if method not in ('GET', 'POST'):
             # The sensor uses GET, so this prevents filling up the log
             # with the body every time the GET 'misses'.
             # That's ok to do, because GETs should be repeatable and
             # all data should be visible in the log (no post data)
             logging.error(response.text)
-        raise AirflowException(str(response.status_code) + ":" + response.reason)
+        raise AirflowException(str(response.status_code) + ":" + response.content.__str__())
     return response
 
 
@@ -78,12 +79,17 @@ class HDinsightHook(BaseHook):
 
         return session
 
-    def submit_hive_job(self, hive_file):
+    def submit_hive_job(self, datas):
+        """
+        Reference:
+        https://cwiki.apache.org/confluence/display/Hive/WebHCat+Reference+Hive
+        """
+
         method = "POST"
-        datas = {'file': hive_file, 'statusdir': 'wasb:///example/curl'}
+
         submit_endpoint = self.hive_endpoint + "hive"
 
-        logging.info("Submiting hive  Script: " + str(hive_file))
+        logging.info("Submiting hive  Script: " + str(datas))
 
         response = self.http_rest_call(method=method,
                                        endpoint=submit_endpoint,
@@ -99,9 +105,31 @@ class HDinsightHook(BaseHook):
             logging.error(result)
             raise Exception(result)
 
-    def http_rest_call(self, method, endpoint, data=None, extra_options=None):
-        if not extra_options:
-            extra_options = {}
+    def submit_spark_job(self, datas):
+        """
+        Reference:
+        http://livy.incubator.apache.org/docs/latest/rest-api.html
+        """
+        method = "POST"
+        submit_endpoint = self.spark_endpoint
+
+        logging.info("Submiting spark Job: %s ", json.dumps(datas))
+        response = self.http_rest_call(method=method,
+                                       endpoint=submit_endpoint,
+                                       data=json.dumps(datas))
+
+        if response.status_code in self.acceptable_response_codes:
+            response_json = response.json()
+            return response_json["id"]
+        else:
+            result = "Statement didn\'t return {0}. Returned \'{1}\'." \
+                .format(str(self.acceptable_response_codes),
+                        str(response.status_code))
+            logging.error(result)
+            raise Exception(result)
+
+    def http_rest_call(self, method, endpoint, data=None):
+
         logging.debug(
             "HTTP REQUEST: (method: {0}, endpoint: {1}, data: {2}, headers: {3})"
                 .format(str(method),
@@ -109,14 +137,14 @@ class HDinsightHook(BaseHook):
                         str(data),
                         str(self.headers)))
 
-        response = self._run(method, endpoint, data, extra_options=extra_options)
+        response = self._run(method, endpoint, data)
 
         logging.debug("status_code: " + str(response.status_code))
         logging.debug("response_as_json: " + str(response.json()))
 
         return response
 
-    def get_job_statements(self, job_id):
+    def get_hive_job_statements(self, job_id):
         method = "GET"
         status_endpoint = self.hive_endpoint + "jobs/" + str(job_id)
         response = self.http_rest_call(method=method, endpoint=status_endpoint)
@@ -124,6 +152,22 @@ class HDinsightHook(BaseHook):
         if response.status_code in self.acceptable_response_codes:
             response_json = response.json()
             statements = response_json["status"]["state"]
+            return statements
+        else:
+            result = "Call to get the session statement response didn\'t return {0}. Returned \'{1}\'." \
+                .format(str(self.acceptable_response_codes),
+                        str(response.status_code))
+            logging.error(result)
+            raise Exception(result)
+
+    def get_spark_job_statements(self, job_id):
+        method = "GET"
+        status_endpoint = self.spark_endpoint + "/" + str(job_id)
+        response = self.http_rest_call(method=method, endpoint=status_endpoint)
+
+        if response.status_code in self.acceptable_response_codes:
+            response_json = response.json()
+            statements = response_json["state"]
             return statements
         else:
             result = "Call to get the session statement response didn\'t return {0}. Returned \'{1}\'." \

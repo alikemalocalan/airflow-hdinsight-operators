@@ -9,4 +9,4 @@ Firstly, download template.zip from summary screen of  portal hdinsight create p
 - [x] Hive SQL file Submit operator
 - [x] Spark Submit operator
 - [x] Create cluster
-- [x] Delete Cluster
+- [x] Delete Cluster (not yet delete storage cluster after deleting cluster)

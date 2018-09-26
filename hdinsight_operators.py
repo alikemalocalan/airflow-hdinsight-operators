@@ -1,27 +1,20 @@
 import logging
-import time
+from urllib.parse import urlencode
 
 from airflow.models import BaseOperator
 from airflow.utils.decorators import apply_defaults
+from azure.common.credentials import ServicePrincipalCredentials
+from azure.mgmt.hdinsight import HDInsightManagementClient
+from azure.mgmt.resource import ResourceManagementClient
+from azure.mgmt.resource.resources.models import DeploymentMode, DeploymentProperties
 
 from HDinsightHook import HDinsightHook
-
-
-def is_not_null_and_is_not_empty_str(value):
-    return value is not None and value != ""
-
-
-def is_not_null_and_is_not_empty_list(value):
-    return len(value) != 0 and value != []
 
 
 class WebHCatHiveSubmitOperator(BaseOperator):
     """
     Start a Hive query Job on a Azure HDInsight cluster.
     """
-
-    acceptable_response_codes = [200, 201]
-    statement_non_terminated_status_list = ['RUNNING', 'PREP']
 
     @apply_defaults
     def __init__(
@@ -33,13 +26,17 @@ class WebHCatHiveSubmitOperator(BaseOperator):
             enablelog=None,
             files=None,
             callback=None,
-            http_conn_id='azure_http_conn',
             cluster_name=None,
+            cluster_username=None,
+            cluster_password=None,
             *args,
             **kwargs):
 
         super(WebHCatHiveSubmitOperator, self).__init__(*args, **kwargs)
 
+        self.cluster_password = cluster_password
+        self.cluster_username = cluster_username
+        self.cluster_name = cluster_name
         self.query = execute
         self.file = sql_file
         self.statusdir = statusdir
@@ -48,15 +45,14 @@ class WebHCatHiveSubmitOperator(BaseOperator):
         self.files = files
         self.callback = callback
 
-        self.http_conn_id = http_conn_id
-        self.cluster_name = cluster_name
-
-        self.http = HDinsightHook(http_conn_id=self.http_conn_id)
+        self.http = HDinsightHook(self.cluster_name, self.cluster_username, self.cluster_password)
 
     def execute(self, context):
         logging.info("Executing WebHCatHiveSubmitOperator ")
         datas = {}
 
+        hive_defines = None
+        datas["user.name"] = self.cluster_username
         if is_not_null_and_is_not_empty_str(self.file):
             datas["file"] = self.file
         elif not is_not_null_and_is_not_empty_str(self.file) and is_not_null_and_is_not_empty_str(self.query):
@@ -64,7 +60,8 @@ class WebHCatHiveSubmitOperator(BaseOperator):
         if is_not_null_and_is_not_empty_str(self.statusdir):
             datas["statusdir"] = self.statusdir
         if is_not_null_and_is_not_empty_str(self.arg):
-            datas["arg"] = self.arg
+            # define arg params for hive =>  key1=value1;key2=value2
+            hive_defines = urlencode([("define", x) for x in str(self.arg).split(";")])
         if is_not_null_and_is_not_empty_str(self.files):
             datas["files"] = self.files
         if self.enablelog:
@@ -72,34 +69,18 @@ class WebHCatHiveSubmitOperator(BaseOperator):
         if is_not_null_and_is_not_empty_str(self.callback):
             datas["callback"] = self.callback
 
-        job_id = self.http.submit_hive_job(datas)
-        statements_state = self.http.get_hive_job_statements(job_id=job_id)
-        logging.info("Finished submitting hive script job_id: " + job_id + ")")
+        if is_not_null_and_is_not_empty_str(hive_defines):
+            self.query = urlencode(datas) + "&" + hive_defines
+        else:
+            self.query = urlencode(datas)
 
-        while statements_state in self.statement_non_terminated_status_list:
-
-            # todo: test execution_timeout
-            time.sleep(3)
-            statements_state = self.http.get_hive_job_statements(job_id=job_id)
-
-            if statements_state == 'KILLED' or statements_state == 'FAILED':
-                result = "Statement failed. (state: " + statements_state + ' )'
-                logging.error(result)
-                raise Exception(result)
-
-            logging.info("Checking Hive job:  " + statements_state + ")")
-
-        logging.info("Statement %s ", statements_state)
-        logging.info("Finished executing WebHCatHiveSubmitOperator")
+        self.http.submit_hive_job(self.query)
 
 
 class LivySparkSubmitOperator(BaseOperator):
     """
     Start a Spark Job on a Azure HDInsight cluster.
     """
-
-    acceptable_response_codes = [200, 201]
-    statement_non_terminated_status_list = ['starting', 'running', "waiting", "available"]
 
     @apply_defaults
     def __init__(self,
@@ -119,13 +100,16 @@ class LivySparkSubmitOperator(BaseOperator):
                  queue=None,
                  application_args=[],
                  conf={},
-
-                 http_conn_id=None,
                  cluster_name=None,
+                 cluster_username=None,
+                 cluster_password=None,
                  *args, **kwargs):
 
         super(LivySparkSubmitOperator, self).__init__(*args, **kwargs)
 
+        self.cluster_password = cluster_password
+        self.cluster_username = cluster_username
+        self.cluster_name = cluster_name
         self.files = files
         self.pyFiles = pyFiles
         self.jars = jars
@@ -142,10 +126,8 @@ class LivySparkSubmitOperator(BaseOperator):
         self.executorMemory = executorMemory
         self.conf = conf
         self.application_args = application_args
-        self.http_conn_id = http_conn_id
-        self.cluster_name = cluster_name
 
-        self.http = HDinsightHook(http_conn_id=self.http_conn_id)
+        self.http = HDinsightHook(self.cluster_name, self.cluster_username, self.cluster_password)
 
     def execute(self, context):
         logging.info("Executing LivySparkSubmitOperator ")
@@ -182,22 +164,99 @@ class LivySparkSubmitOperator(BaseOperator):
         if is_not_null_and_is_not_empty_list(self.conf):  # TODO Check Emty Map of key=val
             datas["conf"] = self.conf
 
-        job_id = self.http.submit_spark_job(datas)
-        statements_state = self.http.get_spark_job_statements(job_id=job_id)
-        logging.info("Finished submitting spark  job_id: " + str(job_id) + ")")
+        self.http.submit_spark_job(datas)
 
-        while statements_state in self.statement_non_terminated_status_list:
 
-            # todo: test execution_timeout
-            time.sleep(3)
-            statements_state = self.http.get_spark_job_statements(job_id=job_id)
+def is_not_null_and_is_not_empty_str(value):
+    return value is not None and value != ""
 
-            if statements_state == 'error' or statements_state == 'cancelling' or statements_state == 'cancelled':
-                result = "job failed. (state: " + statements_state + ' )'
-                logging.error(result)
-                raise Exception(result)
 
-            logging.info("Checking spark job:  " + statements_state + ")")
+def is_not_null_and_is_not_empty_list(value):
+    return len(value) != 0 and value != []
 
-        logging.info("Statement %s ", statements_state)
-        logging.info("Finished executing LivySparkSubmitOperator")
+
+class HDInsightCreateClusterOperator(BaseOperator):
+    """Refences
+https://github.com/Azure-Samples/resource-manager-python-resources-and-groups
+
+https://docs.microsoft.com/en-us/python/api/overview/azure/key-vault?toc=%2Fpython%2Fazure%2FTOC.json&view=azure-python
+"""
+
+    def __init__(self, client_id, secret, tenant, subscription_id, resource_group_name, resource_group_location,
+                 deploy_name, template_json, parameters_json, *args, **kwargs):
+        super(HDInsightCreateClusterOperator, self).__init__(*args, **kwargs)
+        self.secret = secret
+        self.client_id = client_id
+        self.tenant = tenant
+        self.subscription_id = subscription_id
+        self.resource_group_name = resource_group_name
+        self.resource_group_location = resource_group_location
+        self.deploy_name = deploy_name
+        self.template_json = template_json
+        self.parameters_json = parameters_json
+
+    def create_cluster(self, ):
+        client = ResourceManagementClient(self.get_credential(), self.subscription_id)
+        """Deploy the template to a resource group."""
+        client.resource_groups.get(
+            self.resource_group_name,
+            self.resource_group_location
+        )
+
+        deployment_properties = DeploymentProperties(
+            mode=DeploymentMode.incremental,
+            template=self.template_json,
+            parameters=self.parameters_json)
+
+        deployment_async_operation = client.deployments.create_or_update(
+            self.resource_group_name,
+            self.deploy_name,
+            deployment_properties
+        )
+        deployment_async_operation.wait()
+        return deployment_async_operation.result()
+
+    def execute(self, context):
+        logging.info("Executing HDInsightCreateClusterOperator ")
+        self.create_cluster()
+        logging.info("Finished executing HDInsightCreateClusterOperator")
+
+    def get_credential(self):
+        return ServicePrincipalCredentials(
+            client_id=self.client_id,
+            secret=self.secret,
+            tenant=self.tenant,
+        )
+
+
+class HDInsightDeleteClusterOperator(BaseOperator):
+
+    def __init__(self, client_id, secret, tenant, subscription_id, resource_group_name, resource_group_location,
+                 deploy_name, *args, **kwargs):
+        super(HDInsightDeleteClusterOperator, self).__init__(*args, **kwargs)
+        self.secret = secret
+        self.client_id = client_id
+        self.tenant = tenant
+        self.subscription_id = subscription_id
+        self.resource_group_name = resource_group_name
+        self.resource_group_location = resource_group_location
+        self.cluster_name = deploy_name
+
+    def delete_cluster(self):
+        client = HDInsightManagementClient(self.get_credential(), self.subscription_id)
+        delete_poller = client.clusters.delete(self.resource_group_name,
+                                               cluster_name=self.cluster_name)
+        delete_poller.wait()
+        return delete_poller.result()
+
+    def execute(self, context):
+        logging.info("Executing HDInsightDeleteClusterOperator ")
+        self.delete_cluster()
+        logging.info("Finished executing HDInsightDeleteClusterOperator")
+
+    def get_credential(self):
+        return ServicePrincipalCredentials(
+            client_id=self.client_id,
+            secret=self.secret,
+            tenant=self.tenant,
+        )

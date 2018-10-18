@@ -232,7 +232,7 @@ https://docs.microsoft.com/en-us/python/api/overview/azure/key-vault?toc=%2Fpyth
 class HDInsightDeleteClusterOperator(BaseOperator):
 
     def __init__(self, client_id, secret, tenant, subscription_id, resource_group_name, resource_group_location,
-                 deploy_name, *args, **kwargs):
+                 cluster_name, *args, **kwargs):
         super(HDInsightDeleteClusterOperator, self).__init__(*args, **kwargs)
         self.secret = secret
         self.client_id = client_id
@@ -240,7 +240,7 @@ class HDInsightDeleteClusterOperator(BaseOperator):
         self.subscription_id = subscription_id
         self.resource_group_name = resource_group_name
         self.resource_group_location = resource_group_location
-        self.cluster_name = deploy_name
+        self.cluster_name = cluster_name
 
     def delete_cluster(self):
         client = HDInsightManagementClient(self.get_credential(), self.subscription_id)

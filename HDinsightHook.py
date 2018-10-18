@@ -51,7 +51,7 @@ class HDinsightHook():
         else:
             result = "Statement   returned \'{0}\'." \
                 .format(str(response.status_code))
-            logging.error(result + "\n" + str(response.json()))
+            logging.error(result + "\n" + response.text)
             raise Exception(result)
 
         statements_state = self.get_hive_job_statements(job_id=result)
@@ -62,13 +62,14 @@ class HDinsightHook():
             # todo: test execution_timeout
             time.sleep(5)
             statements_state = self.get_hive_job_statements(job_id=result)
-
-            if statements_state == 'KILLED' or statements_state == 'FAILED':
-                result = "Statement failed. (state: " + statements_state + ' )'
-                logging.error(result)
-                raise Exception(result)
-
-            logging.info("Checking Hive job:  " + statements_state + ")")
+            if statements_state is not None:
+                logging.info("Checking Hive job:  " + statements_state + ")")
+                if statements_state == 'KILLED' or statements_state == 'FAILED':
+                    result = "Statement failed. (state: " + statements_state + ' )'
+                    logging.error(result)
+                    raise Exception(result)
+                else:
+                    logging.info("Checking Hive job:  " + statements_state + ")")
 
         logging.info("Statement %s ", statements_state)
         logging.info("Finished executing WebHCatHiveSubmitOperator")
@@ -143,17 +144,20 @@ class HDinsightHook():
     def get_hive_job_statements(self, job_id):
         method = "GET"
         status_endpoint = self.hive_endpoint + "jobs/" + str(job_id)
-        response = self.http_rest_call(method=method, endpoint=status_endpoint)
 
-        if response.status_code in self.acceptable_response_codes:
-            response_json = response.json()
-            statements = response_json["status"]["state"]
-            return statements
-        else:
-            result = "Call to get the session statement response  returned \'{0}\'." \
-                .format(str(response.status_code))
-            logging.error(result + "\n" + response.text)
-            raise Exception(result)
+        try:
+            response = self.http_rest_call(method=method, endpoint=status_endpoint)
+            if response.status_code in self.acceptable_response_codes:
+                response_json = response.json()
+                statements = response_json["status"]["state"]
+                return statements
+            else:
+                result = "Call to get the session statement response  returned \'{0}\'." \
+                    .format(str(response.status_code))
+                logging.error(result + "\n" + response.text)
+                return None
+        except Exception:
+            return None
 
     def get_spark_job_statements(self, job_id):
         method = "GET"
@@ -169,4 +173,3 @@ class HDinsightHook():
                 .format(str(self.acceptable_response_codes),
                         str(response.status_code))
             logging.error(result)
-            raise Exception(result)

@@ -69,5 +69,5 @@ delete_cluster = HDInsightDeleteClusterOperator(task_id="delete_cluster",
                                                 trigger_rule=TriggerRule.ALL_DONE,
                                                 resource_group_name=resource_group_name,
                                                 resource_group_location=resource_group_location,
-                                                deploy_name=deploy_name,
+                                                cluster_name=cluster_name,
                                                 dag=dag)

@@ -1,3 +1,3 @@
-azure.mgmt.hdinsight
-azure-mgmt-resource
-
+apache-airflow
+azure-mgmt-hdinsight~=1.5.1
+msrestazure~=0.6.3

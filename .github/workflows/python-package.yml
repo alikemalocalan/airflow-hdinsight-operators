@@ -38,4 +38,6 @@ jobs:
       run: |
         airflow initdb
         airflow connections -a --conn_id=azure_hdinsight_default --conn_uri=test-cluster.azurehdinsight.net
-        pytest example_azure_hdinsight_operators.py
+        airflow connections -a --conn_id=hortonworks_ambari_default --conn_uri=test-cluster.azurehdinsight.net
+        python example_azure_hdinsight_operators.py
+        pytest unit_tests.py

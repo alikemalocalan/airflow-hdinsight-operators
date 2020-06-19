@@ -17,11 +17,9 @@
 # specific language governing permissions and limitations
 # under the License.
 #
-import logging
-from datetime import timedelta, datetime
+from datetime import timedelta
 
 from airflow import DAG
-from airflow.exceptions import AirflowException
 from airflow.utils import dates
 from airflow.utils.trigger_rule import TriggerRule
 from azure.mgmt.hdinsight.models import ClusterCreateProperties, \
@@ -144,14 +142,12 @@ example_cluster_params: ClusterCreateProperties = ClusterCreateProperties(
     )
 )
 
-import unittest
-from airflow.models import DagBag, TaskInstance
-
 dag = DAG(dag_id='azure_hdinsinght_test_dag',
           schedule_interval=timedelta(1),
           default_args=default_args,
           tags=['example']
           )
+
 start_cluster = AzureHDInsightCreateClusterOperator(task_id="start_cluster",
                                                     cluster_name=example_cluster_name,
                                                     cluster_params=example_cluster_params,
@@ -177,22 +173,3 @@ delete_cluster = AzureHDInsightDeleteClusterOperator(task_id="delete_cluster",
                                                      dag=dag)
 
 start_cluster >> hive_submit >> spark_submit >> delete_cluster
-
-
-class TestAzureExampleDAG(unittest.TestCase):
-    """Check HelloWorldDAG expectation"""
-
-    def setUp(self):
-        self.dagbag = DagBag()
-
-    def test_example_dag(self):
-        try:
-            start_cluster_task = dag.get_task('start_cluster')
-            ti = TaskInstance(task=start_cluster_task, execution_date=datetime.now())
-            start_cluster_task.execute(ti.get_template_context())
-        except AirflowException as ex:
-            logging.warn(ex)
-
-
-suite = unittest.TestLoader().loadTestsFromTestCase(TestAzureExampleDAG)
-unittest.TextTestRunner(verbosity=2).run(suite)

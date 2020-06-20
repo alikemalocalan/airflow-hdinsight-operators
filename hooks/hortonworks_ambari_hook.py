@@ -19,7 +19,9 @@
 #
 import json
 import time
+from urllib.parse import urlencode
 
+from airflow.exceptions import AirflowConfigException
 from airflow.exceptions import AirflowException
 from airflow.hooks.http_hook import HttpHook
 
@@ -50,12 +52,13 @@ class HdpAmbariHook(HttpHook):
             'X-Requested-By': self.username
         }
 
-    def submit_hive_job(self, body_params: dict, execution_timeout=5):
+    def submit_hive_job(self, body_params: dict, arg: str = None, execution_timeout: int = 5):
         """
         Executes hql code or hive script in Azure HDInsight Cluster
 
         See https://cwiki.apache.org/confluence/display/Hive/WebHCat+Reference+Job
 
+        :param arg: define arg params for hive =>  key1=value1;key2=value2
         :param execution_timeout: connection timeout of requesting to hortomwork cluster
         :type execution_timeout: int
         :param body_params: parametres of Hive script
@@ -63,13 +66,23 @@ class HdpAmbariHook(HttpHook):
 
         """
 
-        self.method = "POST"
+        if not ("file" in body_params or "execute" in body_params):
+            raise AirflowConfigException("Request body must include file or execute params")
+
         body_params.update(self.default_params)
+
+        if arg is not None:
+            hive_defines = urlencode([("define", x) for x in str(arg).split(";")])
+            self.query = urlencode(body_params) + "&" + hive_defines
+        else:
+            self.query = urlencode(body_params)
+
+        self.method = "POST"
         hive_endpoint = "templeton/v1/"
         submit_endpoint = hive_endpoint + "hive"
 
-        self.log.debug("Submiting hive  Script: %s", str(body_params))
-        response = self.run(endpoint=submit_endpoint, data=body_params, headers=self.headers)
+        self.log.debug("Submiting hive  Script: %s", str(self.query))
+        response = self.run(endpoint=submit_endpoint, data=self.query, headers=self.headers)
 
         job_id = response["id"]
         status_endpoint = hive_endpoint + "jobs/" + str(job_id)
@@ -109,10 +122,13 @@ class HdpAmbariHook(HttpHook):
         :type body_params: dict
         """
 
+        body_params.update(self.default_params)
+        if not ("files" in body_params or "pyFiles" in body_params or "className" in body_params):
+            raise AirflowConfigException("Request body must include files (and className) or pyFiles params")
+
         spark_endpoint = "livy/batches"
         submit_endpoint = spark_endpoint
         self.method = "POST"
-        body_params.update(self.default_params)
 
         self.log.info("Submiting spark Job: %s ", json.dumps(body_params))
         response = self.run(endpoint=submit_endpoint,

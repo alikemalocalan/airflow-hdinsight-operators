@@ -17,6 +17,7 @@
 # specific language governing permissions and limitations
 # under the License.
 #
+from airflow.exceptions import AirflowConfigException
 from airflow.models import BaseOperator
 from airflow.utils.decorators import apply_defaults
 
@@ -136,5 +137,8 @@ class AzureLivySparkSubmitOperator(BaseOperator):
             attr_value = getattr(self, attr_name)
             if len(attr_value) != 0 and attr_value != []:
                 datas[attr_name] = attr_value
+
+        if not ("files" in datas or "pyFiles" in datas or "className" in datas):
+            raise AirflowConfigException("Request body must include files (and className) or pyFiles params")
 
         ambari_hook.submit_spark_job(datas, self.timeout)

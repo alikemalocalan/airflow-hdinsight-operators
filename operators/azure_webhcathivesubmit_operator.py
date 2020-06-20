@@ -17,8 +17,8 @@
 # specific language governing permissions and limitations
 # under the License.
 #
-from urllib.parse import urlencode
 
+from airflow.exceptions import AirflowConfigException
 from airflow.models import BaseOperator
 from airflow.utils.decorators import apply_defaults
 
@@ -87,7 +87,7 @@ class AzureWebHCatHiveSubmitOperator(BaseOperator):
         super(AzureWebHCatHiveSubmitOperator, self).__init__(*args, **kwargs)
 
         self.ambari_conn_id = ambari_conn_id
-        self.query = execute
+        self.execute_query = execute
         self.file = file
         self.statusdir = statusdir
         self.arg = arg
@@ -100,7 +100,6 @@ class AzureWebHCatHiveSubmitOperator(BaseOperator):
         ambari_hook = HdpAmbariHook(ambari_conn_id=self.ambari_conn_id)
         datas = {}
 
-        hive_defines = None
         datas["user.name"] = ambari_hook.cluster_name
 
         for attr_name in ["statusdir", "files", "callback"]:
@@ -110,22 +109,15 @@ class AzureWebHCatHiveSubmitOperator(BaseOperator):
 
         if is_not_null_and_is_not_empty_str(self.file):
             datas["file"] = self.file
-        elif not is_not_null_and_is_not_empty_str(self.file) and is_not_null_and_is_not_empty_str(self.query):
-            datas["execute"] = self.query
-
-        if is_not_null_and_is_not_empty_str(self.arg):
-            # define arg params for hive =>  key1=value1;key2=value2
-            hive_defines = urlencode([("define", x) for x in str(self.arg).split(";")])
+        elif not is_not_null_and_is_not_empty_str(self.file) and is_not_null_and_is_not_empty_str(self.execute_query):
+            datas["execute"] = self.execute_query
+        else:
+            raise AirflowConfigException("Request body must include file or execute params")
 
         if self.enablelog:
             datas["enablelog"] = self.enablelog
 
-        if is_not_null_and_is_not_empty_str(hive_defines):
-            self.query = urlencode(datas) + "&" + hive_defines
-        else:
-            self.query = urlencode(datas)
-
-        ambari_hook.submit_hive_job(self.query, self.timeout)
+        ambari_hook.submit_hive_job(datas, self.arg, self.timeout)
 
 
 def is_not_null_and_is_not_empty_str(value):

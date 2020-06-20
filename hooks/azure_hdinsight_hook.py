@@ -25,22 +25,24 @@ from azure.common.client_factory import get_client_from_auth_file
 from azure.common.credentials import ServicePrincipalCredentials
 from azure.mgmt.hdinsight import HDInsightManagementClient
 from azure.mgmt.hdinsight.models import ClusterCreateProperties, ClusterCreateParametersExtended
+from cached_property import cached_property
 from msrestazure.azure_operation import AzureOperationPoller
 
 
 class AzureHDInsightHook(BaseHook):
 
-    def __init__(self, azure_conn_id='azure_default'):
-        super(AzureHDInsightHook, self).__init__(azure_conn_id)
+    def __init__(self, azure_conn_id='azure_default') -> None:
+        super().__init__(azure_conn_id)
 
         self.conn_id = azure_conn_id
         connection = self.get_connection(azure_conn_id)
         extra_options = connection.extra_dejson
 
-        self.client = self.get_conn()
+        self.client = self.get_conn
         self.resource_group_name = str(extra_options.get("resource_group_name"))
         self.resource_group_location = str(extra_options.get("resource_group_location"))
 
+    @cached_property
     def get_conn(self):
         """
         Return a HDInsight client.

@@ -80,7 +80,7 @@ class AzureLivySparkSubmitOperator(BaseOperator):
                  queue=None,
                  application_args=None,
                  conf=None,
-                 timeout=5,
+                 do_xcom_push: bool = True,
                  *args,
                  **kwargs
                  ):
@@ -115,8 +115,8 @@ class AzureLivySparkSubmitOperator(BaseOperator):
         self.master = master
         self.executorMemory = executor_memory
         self.conf = conf
+        self.do_xcom_push = do_xcom_push
         self.args = application_args
-        self.timeout = timeout
 
     def execute(self, context):
         ambari_hook = HdpAmbariHook(ambari_conn_id=self.ambari_conn_id)
@@ -141,4 +141,6 @@ class AzureLivySparkSubmitOperator(BaseOperator):
         if not ("files" in datas or "pyFiles" in datas or "className" in datas):
             raise AirflowConfigException("Request body must include files (and className) or pyFiles params")
 
-        ambari_hook.submit_spark_job(datas, self.timeout)
+        job_id = ambari_hook.submit_spark_job(datas)
+        if self.do_xcom_push:
+            context['ti'].xcom_push(key='spark_job_id', value=job_id)

@@ -41,3 +41,4 @@ jobs:
         airflow connections -a --conn_id=hortonworks_ambari_default --conn_uri=test-cluster.azurehdinsight.net
         python example_azure_hdinsight_operators.py
         pytest hdp_hook_unit_tests.py
+        pytest hdp_sensor_unit_tests.py

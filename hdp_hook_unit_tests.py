@@ -7,7 +7,7 @@ from airflow.models import Connection
 from hooks.hortonworks_ambari_hook import HdpAmbariHook
 
 
-class TestHortonWorkAmbariHook(unittest.TestCase):
+class HortonWorkAmbariHook(unittest.TestCase):
 
     def setUp(self):
         self.hdp_Ambari_Hook = HdpAmbariHook()

@@ -79,7 +79,7 @@ class AzureWebHCatHiveSubmitOperator(BaseOperator):
                  enablelog=None,
                  files=None,
                  callback=None,
-                 timeout=5,
+                 do_xcom_push: bool = True,
                  *args,
                  **kwargs
                  ):
@@ -94,13 +94,11 @@ class AzureWebHCatHiveSubmitOperator(BaseOperator):
         self.enablelog = enablelog
         self.files = files
         self.callback = callback
-        self.timeout = timeout
+        self.do_xcom_push = do_xcom_push
 
     def execute(self, context):
         ambari_hook = HdpAmbariHook(ambari_conn_id=self.ambari_conn_id)
-        datas = {}
-
-        datas["user.name"] = ambari_hook.cluster_name
+        datas = {"user.name": ambari_hook.cluster_name}
 
         for attr_name in ["statusdir", "files", "callback"]:
             attr_value = getattr(self, attr_name)
@@ -117,7 +115,9 @@ class AzureWebHCatHiveSubmitOperator(BaseOperator):
         if self.enablelog:
             datas["enablelog"] = self.enablelog
 
-        ambari_hook.submit_hive_job(datas, self.arg, self.timeout)
+        job_id = ambari_hook.submit_hive_job(datas, self.arg)
+        if self.do_xcom_push:
+            context['ti'].xcom_push(key='hive_job_id', value=job_id)
 
 
 def is_not_null_and_is_not_empty_str(value):

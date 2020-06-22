@@ -11,4 +11,4 @@ class AzureWebHCatHive(AzureHortonWorksBase):
         self.job_id = job_id
 
     def poke(self, context):
-        self.check_hive_status(self.job_id)
+        return self.check_hive_status(self.job_id)

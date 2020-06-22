@@ -26,7 +26,7 @@ class HdpSensorTest(unittest.TestCase):
             check_options={'timeout': 5}
         )
 
-        with self.assertRaises(AirflowException) as ex:
+        with self.assertRaises(AirflowException):
             sensor.poke(None)
 
     @mock.patch('hooks.hortonworks_ambari_hook.HdpAmbariHook', autospec=True)
@@ -37,6 +37,5 @@ class HdpSensorTest(unittest.TestCase):
             dag=self.dag,
             check_options={'timeout': 5}
         )
-
-        with self.assertRaises(AirflowException) as ex:
+        with self.assertRaises(AirflowException):
             sensor.poke(None)

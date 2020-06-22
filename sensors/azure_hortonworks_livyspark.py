@@ -11,4 +11,4 @@ class AzureLivySpark(AzureHortonWorksBase):
         self.job_id = job_id
 
     def poke(self, context):
-        self.check_spark_status(self.job_id)
+        return self.check_spark_status(self.job_id)

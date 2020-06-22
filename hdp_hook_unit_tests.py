@@ -8,7 +8,8 @@ from hooks.hortonworks_ambari_hook import HdpAmbariHook
 
 
 class HortonWorkAmbariHook(unittest.TestCase):
-
+    # ti = TaskInstance(task=start_cluster_task, execution_date=datetime.now())
+    # start_cluster_task.execute(ti.get_template_context())
     def setUp(self):
         self.hdp_Ambari_Hook = HdpAmbariHook()
 
@@ -33,11 +34,8 @@ class HortonWorkAmbariHook(unittest.TestCase):
             "className": "com.test",
             "file": "wasp://test"
         }
-        # test that it raises
 
-        # ti = TaskInstance(task=start_cluster_task, execution_date=datetime.now())
-        # start_cluster_task.execute(ti.get_template_context())
-        with self.assertRaises(requests.exceptions.ConnectionError) as ex:
+        with self.assertRaises(requests.exceptions.ConnectionError):
             self.hdp_Ambari_Hook.submit_spark_job(datas)
 
     @mock.patch('hooks.hortonworks_ambari_hook.HdpAmbariHook.get_connection')
@@ -52,9 +50,5 @@ class HortonWorkAmbariHook(unittest.TestCase):
             "user.name": "test",
             "file": "wasp://test"
         }
-        # test that it raises
-
-        # ti = TaskInstance(task=start_cluster_task, execution_date=datetime.now())
-        # start_cluster_task.execute(ti.get_template_context())
-        with self.assertRaises(requests.exceptions.ConnectionError) as ex:
+        with self.assertRaises(requests.exceptions.ConnectionError):
             self.hdp_Ambari_Hook.submit_hive_job(datas)

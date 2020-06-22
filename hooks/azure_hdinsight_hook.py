@@ -24,7 +24,7 @@ from airflow.hooks.base_hook import BaseHook
 from azure.common.client_factory import get_client_from_auth_file
 from azure.common.credentials import ServicePrincipalCredentials
 from azure.mgmt.hdinsight import HDInsightManagementClient
-from azure.mgmt.hdinsight.models import ClusterCreateProperties, ClusterCreateParametersExtended
+from azure.mgmt.hdinsight.models import ClusterCreateProperties, ClusterCreateParametersExtended, Cluster
 from cached_property import cached_property
 from msrestazure.azure_operation import AzureOperationPoller
 
@@ -35,12 +35,9 @@ class AzureHDInsightHook(BaseHook):
         super().__init__(azure_conn_id)
 
         self.conn_id = azure_conn_id
-        connection = self.get_connection(azure_conn_id)
-        extra_options = connection.extra_dejson
-
+        self.resource_group_name = None
+        self.resource_group_location = None
         self.client = self.get_conn
-        self.resource_group_name = str(extra_options.get("resource_group_name"))
-        self.resource_group_location = str(extra_options.get("resource_group_location"))
 
     @cached_property
     def get_conn(self):
@@ -61,7 +58,10 @@ class AzureHDInsightHook(BaseHook):
         :rtype: HDInsightManagementClient
         """
         conn = self.get_connection(self.conn_id)
-        key_path = conn.extra_dejson.get('key_path', False)
+        extra_options = conn.extra_dejson
+        key_path = extra_options.get('key_path', False)
+        self.resource_group_name = str(extra_options.get("resource_group_name"))
+        self.resource_group_location = str(extra_options.get("resource_group_location"))
         if key_path:
             if key_path.endswith('.json'):
                 self.log.info('Getting connection using a JSON key file.')
@@ -96,16 +96,12 @@ class AzureHDInsightHook(BaseHook):
         :return:
         """
 
-        cluster_deployment: AzureOperationPoller = self.client.clusters.create(
+        cluster_deployment: Cluster = self.client.clusters.create(
             cluster_name=cluster_name,
             resource_group_name=self.resource_group_name,
-            parameters=ClusterCreateParametersExtended(
-                location=self.resource_group_location,
-                tags={},
-                properties=cluster_params
-            ))
-        cluster_deployment.wait()
-        return cluster_deployment.result()
+            parameters=self.get_cluster_create_parameters(self.resource_group_location, {}, cluster_params)
+        )
+        return cluster_deployment
 
     def delete_cluster(self, cluster_name):
         """
@@ -116,5 +112,14 @@ class AzureHDInsightHook(BaseHook):
         """
         delete_poller: AzureOperationPoller = self.client.clusters.delete(self.resource_group_name,
                                                                           cluster_name=cluster_name)
-        delete_poller.wait()
         return delete_poller.result()
+
+    @staticmethod
+    def get_cluster_create_parameters(resource_group_location: str,
+                                      tags: dict,
+                                      cluster_params: ClusterCreateProperties):
+        return ClusterCreateParametersExtended(
+            location=resource_group_location,
+            tags=tags,
+            properties=cluster_params
+        )

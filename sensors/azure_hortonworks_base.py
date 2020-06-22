@@ -1,5 +1,3 @@
-from typing import Optional
-
 from airflow import AirflowException
 from airflow.operators.sensors import BaseSensorOperator
 from airflow.utils.decorators import apply_defaults
@@ -22,19 +20,20 @@ class AzureHortonWorksBase(BaseSensorOperator):
         self.failed_status_list = ['error', 'cancelling', 'cancelled', 'shutting_down',
                                    'dead', 'killed', 'KILLED', 'FAILED']
 
-    def check_spark_status(self, job_id) -> Optional[str]:
+    def check_spark_status(self, job_id) -> bool:
         statements_state = self.hook.get_spark_job_status(job_id) or 'INIT'
         if statements_state in self.non_terminated_status_list:
-            return None
+            self.log.debug("Checking Hive job: %s", statements_state)
+            return False
         elif statements_state in self.failed_status_list:
             result = "job failed. state: %s", statements_state
             self.log.error(result)
             raise AirflowException(result)
         else:
             self.log.debug("Checking Spark job: %s", statements_state)
-            return statements_state
+            return True
 
-    def check_hive_status(self, job_id):
+    def check_hive_status(self, job_id) -> bool:
         status = self.hook.get_hive_job_status(job_id)
         statements_state = status["state"]
         statements_exit_value = status["exitValue"]
@@ -45,8 +44,9 @@ class AzureHortonWorksBase(BaseSensorOperator):
             raise AirflowException(result)
         elif statements_state in self.non_terminated_status_list:
             self.log.debug("Checking Hive job: %s", statements_state)
-            return None
+            return False
         else:
             self.log.debug("Statement %s ", statements_state)
-            self.log.debug("Finished executing WebHCatHiveSubmitOperator")
-            return statements_state, statements_exit_value
+            self.log.debug(
+                f"Finished executing WebHCatHiveSubmitOperator with status: {statements_state} : {statements_exit_value}")
+            return True

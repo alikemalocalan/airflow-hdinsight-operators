@@ -37,8 +37,8 @@ jobs:
     - name: Test with pytest
       run: |
         airflow db migrate
-        airflow connections add --conn_id=azure_hdinsight_default --conn_uri=test-cluster.azurehdinsight.net
-        airflow connections add --conn_id=hortonworks_ambari_default --conn_uri=test-cluster.azurehdinsight.net
+        airflow connections add 'azure_hdinsight_default' --conn_uri=test-cluster.azurehdinsight.net
+        airflow connections add 'hortonworks_ambari_default' --conn_uri=test-cluster.azurehdinsight.net
         python example_azure_hdinsight_operators.py
         pytest hdp_hook_unit_tests.py
         pytest hdp_sensor_unit_tests.py

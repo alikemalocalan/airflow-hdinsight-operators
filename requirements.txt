@@ -1,5 +1,5 @@
 apache-airflow
-azure-mgmt-hdinsight~=1.5.1
+azure-mgmt-hdinsight~=9.0.0
 msrestazure~=0.6.3
 mock~=4.0.2
 requests~=2.24.0

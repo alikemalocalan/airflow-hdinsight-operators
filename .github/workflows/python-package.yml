@@ -36,7 +36,7 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Test with pytest
       run: |
-        airflow db init
+        airflow db migrate
         airflow connections -a --conn_id=azure_hdinsight_default --conn_uri=test-cluster.azurehdinsight.net
         airflow connections -a --conn_id=hortonworks_ambari_default --conn_uri=test-cluster.azurehdinsight.net
         python example_azure_hdinsight_operators.py

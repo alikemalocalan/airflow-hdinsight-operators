@@ -1,4 +1,4 @@
-apache-airflow==1.10.15
+apache-airflow==2.9.1
 azure-mgmt-hdinsight~=1.5.1
 msrestazure~=0.6.4
 mock~=4.0.2

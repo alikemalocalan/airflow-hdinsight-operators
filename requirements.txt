@@ -3,3 +3,4 @@ azure-mgmt-hdinsight~=1.2.0
 msrestazure~=0.6.4
 mock~=3.0.1
 requests-mock~=1.6.0
+werkzeug==0.15.4

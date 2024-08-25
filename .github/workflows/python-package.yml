@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-20.04
     strategy:
       matrix:
-        python-version: [ 3.8 ]
+        python-version: [ 3.6 ]
 
     steps:
     - uses: actions/checkout@v4
@@ -25,7 +25,7 @@ jobs:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
       run: |
-        pip install flake8==3.5.0 pytest
+        pip install flake8==3.6.0 pytest
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
     - name: Lint with flake8
       run: |

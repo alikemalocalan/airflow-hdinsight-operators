@@ -29,7 +29,7 @@ jobs:
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
     - name: Test with pytest
       run: |
-        airflow db migrate
+        airflow db init
         airflow connections add 'azure_hdinsight_default' --conn-uri test-cluster.azurehdinsight.net
         airflow connections add 'hortonworks_ambari_default' --conn-uri test-cluster.azurehdinsight.net
         python example_azure_hdinsight_operators.py
